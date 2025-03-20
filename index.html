@@ -118,30 +118,50 @@
             }
         }
 
-        // Lấy danh sách chi nhánh
+        // Lấy danh sách chi nhánh (Đã sửa)
         async function getBranches() {
             const url = `${SHOPNAME_URL}/api/branchs?format=json`;
             const headers = { "Cookie": `ss-id=${sessionId}` };
 
             try {
-                const response = await fetch(url, { headers });
+                const response = await fetch(url, {
+                    method: "GET",
+                    headers: headers,
+                    credentials: "include" // Đảm bảo gửi cookie nếu cần
+                });
+
                 if (response.ok) {
                     const data = await response.json();
-                    const branches = data.results;
-                    const branchSelect = document.getElementById("branchSelect");
-                    branchSelect.innerHTML = "";
-                    branches.forEach(branch => {
-                        const option = document.createElement("option");
-                        option.value = branch.Id;
-                        option.text = `${branch.Name} (ID: ${branch.Id})`;
-                        branchSelect.appendChild(option);
-                    });
-                    branchId = branchSelect.value; // Mặc định chọn chi nhánh đầu tiên
+                    if (data && data.results && Array.isArray(data.results)) {
+                        const branches = data.results;
+                        const branchSelect = document.getElementById("branchSelect");
+                        branchSelect.innerHTML = ""; // Xóa các tùy chọn cũ
+
+                        if (branches.length === 0) {
+                            log("Không tìm thấy chi nhánh nào!");
+                            branchSelect.innerHTML = "<option value=''>Không có chi nhánh</option>";
+                            return;
+                        }
+
+                        branches.forEach(branch => {
+                            const option = document.createElement("option");
+                            option.value = branch.Id;
+                            option.text = `${branch.Name} (ID: ${branch.Id})`;
+                            branchSelect.appendChild(option);
+                        });
+                        branchId = branchSelect.value; // Chọn chi nhánh đầu tiên mặc định
+                        log(`Lấy được ${branches.length} chi nhánh.`);
+                    } else {
+                        log("Dữ liệu chi nhánh không hợp lệ!");
+                        document.getElementById("branchSelect").innerHTML = "<option value=''>Dữ liệu không hợp lệ</option>";
+                    }
                 } else {
-                    log("Lấy danh sách chi nhánh thất bại!");
+                    log(`Lấy danh sách chi nhánh thất bại! Mã lỗi: ${response.status}`);
+                    document.getElementById("branchSelect").innerHTML = "<option value=''>Lỗi tải chi nhánh</option>";
                 }
             } catch (error) {
-                log("Lỗi: " + error.message);
+                log("Lỗi khi lấy chi nhánh: " + error.message);
+                document.getElementById("branchSelect").innerHTML = "<option value=''>Lỗi tải chi nhánh</option>";
             }
         }
 
