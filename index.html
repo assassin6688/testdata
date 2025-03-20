@@ -18,16 +18,26 @@
         <input type="text" id="username" placeholder="Tên đăng nhập">
         <input type="password" id="password" placeholder="Mật khẩu">
         <button onclick="login()">Đăng nhập</button>
+        
+        <div id="branchSelection" class="hidden">
+            <h3>Chọn Chi Nhánh</h3>
+            <select id="branchList"></select>
+            <button onclick="selectBranch()">Xác nhận</button>
+        </div>
+        
         <div id="actions" class="hidden">
             <h3>Chức năng</h3>
             <button onclick="deleteAllOrders()">Xóa tất cả đơn hàng</button>
             <button onclick="deleteAllProducts()">Xóa tất cả sản phẩm</button>
+            <button onclick="deleteAllCustomers()">Xóa tất cả khách hàng</button>
+            <button onclick="deleteAllSuppliers()">Xóa tất cả nhà cung cấp</button>
         </div>
         <p id="status"></p>
     </div>
     <script>
         let shopUrl = "";
         let sessionId = "";
+        let branchId = "";
         
         function login() {
             const shopName = document.getElementById("shopName").value.trim();
@@ -40,29 +50,99 @@
                 .then(data => {
                     if (data.SessionId) {
                         sessionId = data.SessionId;
-                        document.getElementById("actions").classList.remove("hidden");
-                        document.getElementById("status").innerText = "Đăng nhập thành công!";
+                        document.getElementById("branchSelection").classList.remove("hidden");
+                        document.getElementById("status").innerText = "Đăng nhập thành công! Chọn chi nhánh.";
+                        getBranches();
                     } else {
                         document.getElementById("status").innerText = "Đăng nhập thất bại!";
                     }
                 });
         }
         
-        function deleteAllOrders() {
-            fetch(`${shopUrl}/api/orders`, {
-                method: 'DELETE',
+        function getBranches() {
+            fetch(`${shopUrl}/api/branchs?format=json`, {
                 headers: { 'Cookie': `ss-id=${sessionId}` }
-            }).then(() => {
+            })
+            .then(response => response.json())
+            .then(data => {
+                let select = document.getElementById("branchList");
+                select.innerHTML = "";
+                data.results.forEach(branch => {
+                    let option = document.createElement("option");
+                    option.value = branch.Id;
+                    option.textContent = branch.Name;
+                    select.appendChild(option);
+                });
+            });
+        }
+        
+        function selectBranch() {
+            branchId = document.getElementById("branchList").value;
+            document.getElementById("actions").classList.remove("hidden");
+            document.getElementById("status").innerText = "Chi nhánh đã được chọn.";
+        }
+        
+        function deleteAllOrders() {
+            fetch(`${shopUrl}/api/orders?format=json`, {
+                headers: { 'Cookie': `ss-id=${sessionId}` }
+            })
+            .then(response => response.json())
+            .then(data => {
+                data.results.forEach(order => {
+                    fetch(`${shopUrl}/api/orders/${order.Id}`, {
+                        method: 'DELETE',
+                        headers: { 'Cookie': `ss-id=${sessionId}` }
+                    });
+                });
                 document.getElementById("status").innerText = "Đã xóa tất cả đơn hàng.";
             });
         }
         
         function deleteAllProducts() {
-            fetch(`${shopUrl}/api/products`, {
-                method: 'DELETE',
+            fetch(`${shopUrl}/api/products?format=json`, {
                 headers: { 'Cookie': `ss-id=${sessionId}` }
-            }).then(() => {
+            })
+            .then(response => response.json())
+            .then(data => {
+                data.results.forEach(product => {
+                    fetch(`${shopUrl}/api/products/${product.Id}`, {
+                        method: 'DELETE',
+                        headers: { 'Cookie': `ss-id=${sessionId}` }
+                    });
+                });
                 document.getElementById("status").innerText = "Đã xóa tất cả sản phẩm.";
+            });
+        }
+        
+        function deleteAllCustomers() {
+            fetch(`${shopUrl}/api/partners?format=json&Type=1`, {
+                headers: { 'Cookie': `ss-id=${sessionId}` }
+            })
+            .then(response => response.json())
+            .then(data => {
+                data.results.forEach(customer => {
+                    fetch(`${shopUrl}/api/partners/${customer.Id}?format=json&Type=1`, {
+                        method: 'DELETE',
+                        headers: { 'Cookie': `ss-id=${sessionId}` }
+                    });
+                });
+                document.getElementById("status").innerText = "Đã xóa tất cả khách hàng.";
+            });
+        }
+        
+        function deleteAllSuppliers() {
+            fetch(`${shopUrl}/api/partners?format=json&Type=2`, {
+                headers: { 'Cookie': `ss-id=${sessionId}` }
+            })
+            .then(response => response.json())
+            .then(data => {
+                data.results.forEach(supplier => {
+                    fetch(`${shopUrl}/api/partners/${supplier.Id}?format=json&Type=2`, {
+                        method: 'DELETE',
+                        headers: { 'Cookie': `ss-id=${sessionId}` }
+                    });
+                });
+                document.getElementById("status").innerText = "Đã xóa tất cả nhà cung cấp.";
             });
         }
     </script>
