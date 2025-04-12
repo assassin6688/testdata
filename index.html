@@ -124,12 +124,7 @@
             const headers = { "Cookie": `ss-id=${sessionId}` };
 
             try {
-                const response = await fetch(url, {
-                    method: "GET",
-                    headers: headers,
-                    //credentials: "include" // Đảm bảo gửi cookie nếu cần
-                });
-
+                const response = await fetch(url, headers: headers);
                 if (response.ok) {
                     const data = await response.json();
                     if (data && data.results && Array.isArray(data.results)) {
