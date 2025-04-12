@@ -106,7 +106,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     sessionId = data.SessionId;
-                    log("Đăng nhập thành công!");
+                    log(`Đăng nhập thành công! Session ID: ${sessionId}`);
                     document.getElementById("loginSection").classList.add("hidden");
                     document.getElementById("mainSection").classList.remove("hidden");
                     await getBranches();
