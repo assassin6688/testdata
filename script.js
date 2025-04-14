@@ -1,7 +1,5 @@
 // --- Configuration ---
-// !!! QUAN TRỌNG: Thay đổi URL này thành URL backend của bạn sau khi deploy lên Render !!!
-const BACKEND_URL = 'https://pos365-tool-api.onrender.com'; // URL backend Flask (khi chạy local)
-// Ví dụ khi deploy: const BACKEND_URL = 'https://your-flask-app-name.onrender.com';
+const BACKEND_URL = 'https://pos365-tool-api.onrender.com';
 
 // --- DOM Elements ---
 const loginSection = document.getElementById('login-section');
@@ -24,30 +22,24 @@ const logOutput = document.getElementById('log-output');
 let currentSessionId = null;
 let currentShopName = null;
 let selectedBranchId = null;
-let isProcessing = false; // Cờ để ngăn chặn nhiều hành động cùng lúc
-let eventSource = null; // Để giữ kết nối SSE
+let isProcessing = false;
+let eventSource = null;
 
 // --- Utility Functions ---
 function log(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = document.createElement('div');
     logEntry.textContent = `[${timestamp}] ${message}`;
-    if (type === 'error') {
-        logEntry.classList.add('log-error');
-    } else if (type === 'success') {
-        logEntry.classList.add('log-success');
-    } else {
-         logEntry.classList.add('log-info');
-    }
+    logEntry.className = `log-${type}`;
     logOutput.appendChild(logEntry);
-    logOutput.scrollTop = logOutput.scrollHeight; // Cuộn xuống dưới cùng
+    logOutput.scrollTop = logOutput.scrollHeight;
 }
 
 function setLoading(loading) {
     isProcessing = loading;
     loginBtn.disabled = loading;
     actionButtons.forEach(btn => btn.disabled = loading);
-    // Có thể thêm hiệu ứng loading trực quan hơn
+    branchSelect.disabled = loading;
     if (loading) {
         log('Đang xử lý, vui lòng đợi...');
     }
@@ -66,11 +58,16 @@ function updateProgress(processed, total, message = '') {
         progressBar.value = percentage;
         progressText.textContent = `${percentage}%`;
     } else {
-         progressBar.value = 0;
-         progressText.textContent = `0%`;
+        progressBar.value = 0;
+        progressText.textContent = '0%';
     }
-     currentActionSpan.textContent = message || `Đã xử lý ${processed}/${total}`;
-     progressSection.style.display = 'block';
+    currentActionSpan.textContent = message || `Đã xử lý ${processed}/${total}`;
+    progressSection.style.display = 'block';
+}
+
+function updateBranchStatus(message, isError = false) {
+    branchStatus.textContent = message;
+    branchStatus.className = `status-message ${isError ? 'error' : ''}`;
 }
 
 // --- Event Handlers ---
@@ -101,32 +98,39 @@ loginBtn.addEventListener('click', async () => {
         if (response.ok && data.success) {
             currentSessionId = data.session_id;
             log(data.message, 'success');
-            log(`Session ID: ${currentSessionId}`); // Chỉ log để debug, có thể xóa sau
 
             // Populate branch dropdown
-            branchSelect.innerHTML = '<option value="">-- Vui lòng chọn --</option>'; // Clear old options
+            branchSelect.innerHTML = '<option value="">-- Vui lòng chọn --</option>';
             if (data.branches && data.branches.length > 0) {
                 data.branches.forEach(branch => {
-                    const option = document.createElement('option');
-                    option.value = branch.Id;
-                    option.textContent = branch.Name;
-                    branchSelect.appendChild(option);
+                    if (branch.Id && branch.Name) {
+                        const option = document.createElement('option');
+                        option.value = branch.Id;
+                        option.textContent = branch.Name;
+                        branchSelect.appendChild(option);
+                    } else {
+                        log(`Chi nhánh không hợp lệ: ${JSON.stringify(branch)}`, 'error');
+                    }
                 });
+                branchSelect.disabled = false;
+                updateBranchStatus('Vui lòng chọn chi nhánh.');
+                log(`Tìm thấy ${data.branches.length} chi nhánh.`);
             } else {
-                 log('Không tìm thấy chi nhánh nào hoặc có lỗi khi lấy danh sách chi nhánh.', 'info');
+                branchSelect.disabled = true;
+                updateBranchStatus('Không tìm thấy chi nhánh nào. Vui lòng kiểm tra thông tin đăng nhập hoặc liên hệ hỗ trợ.', true);
+                log('Không có chi nhánh nào được trả về từ server.', 'error');
             }
-
 
             loginSection.style.display = 'none';
             mainSection.style.display = 'block';
-            resetProgress(); // Ẩn progress bar cũ nếu có
+            resetProgress();
         } else {
             log(`Đăng nhập thất bại: ${data.message || response.statusText}`, 'error');
             currentSessionId = null;
             currentShopName = null;
         }
     } catch (error) {
-        log(`Lỗi kết nối hoặc xử lý: ${error}`, 'error');
+        log(`Lỗi kết nối hoặc xử lý: ${error.message}`, 'error');
         currentSessionId = null;
         currentShopName = null;
     } finally {
@@ -137,26 +141,25 @@ loginBtn.addEventListener('click', async () => {
 // Select Branch
 branchSelect.addEventListener('change', async () => {
     selectedBranchId = branchSelect.value;
-    branchStatus.textContent = ''; // Clear previous status
+    updateBranchStatus('');
 
     if (!selectedBranchId) {
         log('Chưa chọn chi nhánh.', 'info');
-        // Disable các nút cần chi nhánh
         actionButtons.forEach(btn => {
-             if (btn.dataset.branchFilter === 'true') {
-                 btn.disabled = true;
-             }
+            btn.disabled = btn.dataset.branchFilter === 'true';
         });
         return;
     }
 
     if (!currentSessionId || !currentShopName) {
-         log('Lỗi: Thiếu Session ID hoặc Shop Name để chọn chi nhánh.', 'error');
-         return;
+        log('Lỗi: Thiếu Session ID hoặc Shop Name để chọn chi nhánh.', 'error');
+        branchSelect.value = '';
+        selectedBranchId = null;
+        return;
     }
 
-    setLoading(true); // Có thể không cần disable nút khác ở đây
-    branchStatus.textContent = `Đang chọn chi nhánh: ${branchSelect.options[branchSelect.selectedIndex].text}...`;
+    setLoading(true);
+    updateBranchStatus(`Đang chọn chi nhánh: ${branchSelect.options[branchSelect.selectedIndex].text}...`);
     log(`Đang chọn chi nhánh ID: ${selectedBranchId}`);
 
     try {
@@ -174,45 +177,35 @@ branchSelect.addEventListener('change', async () => {
 
         if (response.ok && data.success) {
             log(data.message, 'success');
-            branchStatus.textContent = `Đã chọn: ${branchSelect.options[branchSelect.selectedIndex].text}`;
-             // Enable các nút cần chi nhánh
-             actionButtons.forEach(btn => {
-                 // Enable tất cả nút nếu đăng nhập thành công
-                 // Nút cần chi nhánh sẽ được kiểm tra lại trước khi chạy action
-                 btn.disabled = false;
-             });
+            updateBranchStatus(`Đã chọn: ${branchSelect.options[branchSelect.selectedIndex].text}`);
+            actionButtons.forEach(btn => {
+                btn.disabled = false;
+            });
         } else {
             log(`Chọn chi nhánh thất bại: ${data.message || response.statusText}`, 'error');
-            branchStatus.textContent = `Lỗi chọn chi nhánh!`;
-            selectedBranchId = null; // Reset nếu lỗi
-            branchSelect.value = ""; // Reset dropdown
-             // Disable các nút cần chi nhánh
-             actionButtons.forEach(btn => {
-                 if (btn.dataset.branchFilter === 'true') {
-                     btn.disabled = true;
-                 }
-             });
+            updateBranchStatus(`Lỗi chọn chi nhánh: ${data.message || response.statusText}`, true);
+            selectedBranchId = null;
+            branchSelect.value = '';
+            actionButtons.forEach(btn => {
+                btn.disabled = btn.dataset.branchFilter === 'true';
+            });
         }
     } catch (error) {
-        log(`Lỗi kết nối khi chọn chi nhánh: ${error}`, 'error');
-        branchStatus.textContent = `Lỗi kết nối!`;
+        log(`Lỗi kết nối khi chọn chi nhánh: ${error.message}`, 'error');
+        updateBranchStatus(`Lỗi kết nối khi chọn chi nhánh.`, true);
         selectedBranchId = null;
-        branchSelect.value = "";
-         // Disable các nút cần chi nhánh
-         actionButtons.forEach(btn => {
-             if (btn.dataset.branchFilter === 'true') {
-                 btn.disabled = true;
-             }
-         });
+        branchSelect.value = '';
+        actionButtons.forEach(btn => {
+            btn.disabled = btn.dataset.branchFilter === 'true';
+        });
     } finally {
-         // Chỉ tắt loading nếu không có hành động chính đang chạy
-         if (!isProcessing) {
-             setLoading(false);
-         }
+        if (!isProcessing) {
+            setLoading(false);
+        }
     }
 });
 
-// Action Buttons (Delete/Cancel)
+// Action Buttons
 actionButtons.forEach(button => {
     button.addEventListener('click', () => {
         if (isProcessing) {
@@ -231,7 +224,6 @@ actionButtons.forEach(button => {
             return;
         }
 
-        // Kiểm tra nếu cần chi nhánh mà chưa chọn
         if (branchFilter && !selectedBranchId) {
             log(`Vui lòng chọn một chi nhánh để thực hiện hành động: ${buttonLabel}`, 'error');
             return;
@@ -244,13 +236,11 @@ actionButtons.forEach(button => {
         }
 
         setLoading(true);
-        resetProgress(); // Reset thanh tiến trình trước khi bắt đầu
+        resetProgress();
         log(`Bắt đầu ${buttonLabel}...`);
-        progressSection.style.display = 'block'; // Hiển thị khu vực tiến trình
         currentActionSpan.textContent = `Đang chuẩn bị ${buttonLabel}...`;
 
-
-        // --- Sử dụng Server-Sent Events (SSE) ---
+        // Sử dụng Server-Sent Events
         const params = new URLSearchParams({
             shop_name: currentShopName,
             session_id: currentSessionId,
@@ -259,75 +249,59 @@ actionButtons.forEach(button => {
             extra_param: extraParam,
             action: action
         });
-        // Chỉ thêm branch_id nếu nó có giá trị (đã được chọn)
         if (selectedBranchId) {
-             params.append('branch_id', selectedBranchId);
+            params.append('branch_id', selectedBranchId);
         }
 
-        const url = `${BACKEND_URL}/api/process_data?${params.toString()}`;
-        eventSource = new EventSource(url); // Mở kết nối SSE
+        const url = `${BACKEND_URL}/api/process_data`;
+        eventSource = new EventSource(url, { method: 'POST', body: params });
 
         eventSource.onopen = function() {
-             log(`Đã kết nối tới server để ${buttonLabel}.`);
+            log(`Đã kết nối tới server để ${buttonLabel}.`);
         };
 
         eventSource.onmessage = function(event) {
             try {
                 const data = JSON.parse(event.data);
-
                 switch (data.type) {
                     case 'info':
                         log(data.message, 'info');
                         break;
                     case 'error':
                         log(data.message, 'error');
-                        // Có thể dừng sớm nếu gặp lỗi nghiêm trọng?
-                        // eventSource.close();
-                        // setLoading(false);
                         break;
                     case 'progress':
-                         // Nhận tổng số mục để khởi tạo progress bar
-                         progressBar.max = data.total || 100; // Đặt max cho progress bar
-                         log(`Tổng số mục cần xử lý: ${data.total}`);
-                         updateProgress(0, data.total, `Đang xử lý ${buttonLabel}...`);
-                         break;
+                        progressBar.max = data.total || 100;
+                        log(`Tổng số mục cần xử lý: ${data.total}`);
+                        updateProgress(0, data.total, `Đang xử lý ${buttonLabel}...`);
+                        break;
                     case 'log':
-                        // Log chi tiết từng mục và cập nhật progress
-                        const logType = data.status === 'success' ? 'success' : 'error';
-                        log(`[${data.id}] ${data.message}`, logType);
+                        log(`[${data.id}] ${data.message}`, data.status);
                         updateProgress(data.processed, data.total, `Đang ${buttonLabel}: ${data.processed}/${data.total}`);
                         break;
                     case 'done':
-                        log(`Hoàn thành ${buttonLabel}. Đóng kết nối SSE.`, 'success');
-                        eventSource.close(); // Đóng kết nối khi server báo xong
+                        log(`Hoàn thành ${buttonLabel}.`, 'success');
+                        eventSource.close();
                         setLoading(false);
-                        // Không ẩn progress ngay, để người dùng xem kết quả
-                        // resetProgress();
                         break;
                     default:
-                        log(`Nhận dữ liệu không xác định: ${event.data}`, 'info');
+                        log(`Dữ liệu không xác định: ${event.data}`, 'error');
                 }
             } catch (e) {
-                 log(`Lỗi xử lý dữ liệu SSE: ${e}`, 'error');
-                 log(`Dữ liệu gốc: ${event.data}`);
+                log(`Lỗi xử lý dữ liệu SSE: ${e.message}`, 'error');
             }
         };
 
         eventSource.onerror = function(error) {
-            log('Lỗi kết nối Server-Sent Events. Có thể do server đã đóng hoặc lỗi mạng.', 'error');
+            log('Lỗi kết nối Server-Sent Events. Có thể do server đóng hoặc lỗi mạng.', 'error');
             console.error("SSE Error: ", error);
-            eventSource.close(); // Đóng kết nối khi có lỗi
+            eventSource.close();
             setLoading(false);
-            // Giữ lại progress bar để thấy trạng thái cuối cùng trước lỗi
         };
-
     });
 });
 
 // --- Initial Setup ---
 log('Sẵn sàng. Vui lòng đăng nhập.');
-// Ban đầu disable các nút action và branch select
 branchSelect.disabled = true;
 actionButtons.forEach(btn => btn.disabled = true);
-// Sau khi đăng nhập thành công, branchSelect sẽ được enable
-// Các nút action sẽ được enable/disable dựa trên việc chọn chi nhánh (nếu cần)
