@@ -24,6 +24,7 @@ let currentShopName = null;
 let selectedBranchId = null;
 let isProcessing = false;
 let eventSource = null;
+const SSE_TIMEOUT = 300000; // 5 phút timeout cho SSE
 
 // --- Utility Functions ---
 function log(message, type = 'info') {
@@ -35,13 +36,15 @@ function log(message, type = 'info') {
     logOutput.scrollTop = logOutput.scrollHeight;
 }
 
-function setLoading(loading) {
-    isProcessing = loading;
+function setLoading(loading, isAction = false) {
+    if (isAction) {
+        isProcessing = loading;
+    }
     loginBtn.disabled = loading;
-    actionButtons.forEach(btn => btn.disabled = loading);
+    actionButtons.forEach(btn => btn    btn.disabled = loading);
     branchSelect.disabled = loading;
     if (loading) {
-        log('Đang xử lý, vui lòng đợi...');
+        log(isAction ? 'Đang xử lý hành động, vui lòng đợi...' : 'Đang thực hiện thao tác...', 'info');
     }
 }
 
@@ -68,6 +71,14 @@ function updateProgress(processed, total, message = '') {
 function updateBranchStatus(message, isError = false) {
     branchStatus.textContent = message;
     branchStatus.className = `status-message ${isError ? 'error' : ''}`;
+}
+
+function closeEventSource() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+        log('Đã đóng kết nối SSE.', 'info');
+    }
 }
 
 // --- Event Handlers ---
@@ -158,7 +169,7 @@ branchSelect.addEventListener('change', async () => {
         return;
     }
 
-    setLoading(true);
+    setLoading(true); // Không đặt isProcessing cho thao tác chọn chi nhánh
     updateBranchStatus(`Đang chọn chi nhánh: ${branchSelect.options[branchSelect.selectedIndex].text}...`);
     log(`Đang chọn chi nhánh ID: ${selectedBranchId}`);
 
@@ -199,9 +210,7 @@ branchSelect.addEventListener('change', async () => {
             btn.disabled = btn.dataset.branchFilter === 'true';
         });
     } finally {
-        if (!isProcessing) {
-            setLoading(false);
-        }
+        setLoading(false);
     }
 });
 
@@ -235,10 +244,13 @@ actionButtons.forEach(button => {
             return;
         }
 
-        setLoading(true);
+        setLoading(true, true);
         resetProgress();
         log(`Bắt đầu ${buttonLabel}...`);
         currentActionSpan.textContent = `Đang chuẩn bị ${buttonLabel}...`;
+
+        // Đóng kết nối SSE cũ nếu có
+        closeEventSource();
 
         // Sử dụng Server-Sent Events
         const params = new URLSearchParams({
@@ -253,8 +265,15 @@ actionButtons.forEach(button => {
             params.append('branch_id', selectedBranchId);
         }
 
-        const url = `${BACKEND_URL}/api/process_data`;
-        eventSource = new EventSource(url, { method: 'POST', body: params });
+        const url = `${BACKEND_URL}/api/process_data?${params.toString()}`;
+        eventSource = new EventSource(url);
+
+        // Thiết lập timeout cho SSE
+        const timeout = setTimeout(() => {
+            log('Hết thời gian chờ cho hành động. Đóng kết nối.', 'error');
+            closeEventSource();
+            setLoading(false, true);
+        }, SSE_TIMEOUT);
 
         eventSource.onopen = function() {
             log(`Đã kết nối tới server để ${buttonLabel}.`);
@@ -281,22 +300,27 @@ actionButtons.forEach(button => {
                         break;
                     case 'done':
                         log(`Hoàn thành ${buttonLabel}.`, 'success');
-                        eventSource.close();
-                        setLoading(false);
+                        clearTimeout(timeout);
+                        closeEventSource();
+                        setLoading(false, true);
                         break;
                     default:
                         log(`Dữ liệu không xác định: ${event.data}`, 'error');
                 }
             } catch (e) {
                 log(`Lỗi xử lý dữ liệu SSE: ${e.message}`, 'error');
+                clearTimeout(timeout);
+                closeEventSource();
+                setLoading(false, true);
             }
         };
 
         eventSource.onerror = function(error) {
             log('Lỗi kết nối Server-Sent Events. Có thể do server đóng hoặc lỗi mạng.', 'error');
             console.error("SSE Error: ", error);
-            eventSource.close();
-            setLoading(false);
+            clearTimeout(timeout);
+            closeEventSource();
+            setLoading(false, true);
         };
     });
 });
