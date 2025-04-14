@@ -41,7 +41,7 @@ function setLoading(loading, isAction = false) {
         isProcessing = loading;
     }
     loginBtn.disabled = loading;
-    actionButtons.forEach(btn => btn    btn.disabled = loading);
+    actionButtons.forEach(btn => btn.disabled = loading);
     branchSelect.disabled = loading;
     if (loading) {
         log(isAction ? 'Đang xử lý hành động, vui lòng đợi...' : 'Đang thực hiện thao tác...', 'info');
