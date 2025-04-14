@@ -199,4 +199,132 @@ branchSelect.addEventListener('change', async () => {
 
 // Action Buttons
 actionButtons.forEach(button => {
-    button.addEventListener('click
+    button.addEventListener('click', async () => {
+        if (isProcessing) {
+            log('Đang có một tiến trình khác chạy, vui lòng đợi.', 'error');
+            document.getElementById('action-status').textContent = 'Vui lòng đợi tiến trình hiện tại hoàn thành.';
+            document.getElementById('action-status').className = 'status-message error';
+            return;
+        }
+
+        const endpoint = button.dataset.endpoint;
+        const action = button.dataset.action;
+        const branchFilter = button.dataset.branchFilter === 'true';
+        const extraParam = button.dataset.extraParam || '';
+        const buttonLabel = button.textContent;
+
+        if (!currentSessionId || !currentShopName) {
+            log('Lỗi: Chưa đăng nhập hoặc Session ID không hợp lệ.', 'error');
+            return;
+        }
+
+        if (branchFilter && !selectedBranchId) {
+            log(`Vui lòng chọn một chi nhánh để thực hiện hành động: ${buttonLabel}`, 'error');
+            return;
+        }
+
+        const confirmation = confirm(`Bạn có chắc chắn muốn "${buttonLabel}" không? Hành động này KHÔNG THỂ hoàn tác!`);
+        if (!confirmation) {
+            log('Hành động đã được hủy bởi người dùng.', 'info');
+            return;
+        }
+
+        document.getElementById('action-status').textContent = '';
+        setLoading(true, true);
+        resetProgress();
+        log(`Bắt đầu ${buttonLabel}...`);
+        currentActionSpan.textContent = `Đang chuẩn bị ${buttonLabel}...`;
+
+        // Gửi yêu cầu POST và xử lý stream
+        const payload = {
+            shop_name: currentShopName,
+            session_id: currentSessionId,
+            endpoint: endpoint,
+            branch_filter: branchFilter,
+            extra_param: extraParam,
+            action: action
+        };
+        if (selectedBranchId) {
+            payload.branch_id = selectedBranchId;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/process_data`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server trả về lỗi: ${response.status} - ${response.statusText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            // Thiết lập timeout cho stream
+            const timeout = setTimeout(() => {
+                log('Hết thời gian chờ cho hành động.', 'error');
+                setLoading(false, true);
+            }, STREAM_TIMEOUT);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    clearTimeout(timeout);
+                    setLoading(false, true);
+                    log(`Hoàn thành ${buttonLabel}.`, 'success');
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop(); // Giữ lại phần chưa hoàn chỉnh
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const jsonStr = line.replace('data: ', '');
+                            const data = JSON.parse(jsonStr);
+                            switch (data.type) {
+                                case 'info':
+                                    log(data.message, 'info');
+                                    break;
+                                case 'error':
+                                    log(data.message, 'error');
+                                    break;
+                                case 'progress':
+                                    progressBar.max = data.total || 100;
+                                    log(`Tổng số mục cần xử lý: ${data.total}`);
+                                    updateProgress(0, data.total, `Đang xử lý ${buttonLabel}...`);
+                                    break;
+                                case 'log':
+                                    log(`[${data.id}] ${data.message}`, data.status);
+                                    updateProgress(data.processed, data.total, `Đang ${buttonLabel}: ${data.processed}/${data.total}`);
+                                    break;
+                                case 'done':
+                                    log(`Hoàn thành ${buttonLabel}.`, 'success');
+                                    clearTimeout(timeout);
+                                    setLoading(false, true);
+                                    break;
+                                default:
+                                    log(`Dữ liệu không xác định: ${jsonStr}`, 'error');
+                            }
+                        } catch (e) {
+                            log(`Lỗi xử lý dữ liệu stream: ${e.message}`, 'error');
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            log(`Lỗi khi xử lý ${buttonLabel}: ${error.message}`, 'error');
+            setLoading(false, true);
+        }
+    });
+});
+
+// --- Initial Setup ---
+log('Sẵn sàng. Vui lòng đăng nhập.');
+branchSelect.disabled = true;
+actionButtons.forEach(btn => { btn.disabled = true; });
