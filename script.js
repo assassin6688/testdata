@@ -169,7 +169,7 @@ branchSelect.addEventListener('change', async () => {
         return;
     }
 
-    setLoading(true); // Không đặt isProcessing cho thao tác chọn chi nhánh
+    setLoading(true);
     updateBranchStatus(`Đang chọn chi nhánh: ${branchSelect.options[branchSelect.selectedIndex].text}...`);
     log(`Đang chọn chi nhánh ID: ${selectedBranchId}`);
 
@@ -219,6 +219,8 @@ actionButtons.forEach(button => {
     button.addEventListener('click', () => {
         if (isProcessing) {
             log('Đang có một tiến trình khác chạy, vui lòng đợi.', 'error');
+            document.getElementById('action-status').textContent = 'Vui lòng đợi tiến trình hiện tại hoàn thành.';
+            document.getElementById('action-status').className = 'status-message error';
             return;
         }
 
@@ -244,6 +246,7 @@ actionButtons.forEach(button => {
             return;
         }
 
+        document.getElementById('action-status').textContent = '';
         setLoading(true, true);
         resetProgress();
         log(`Bắt đầu ${buttonLabel}...`);
