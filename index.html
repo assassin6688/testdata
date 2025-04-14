@@ -20,11 +20,13 @@
 
         <div id="main-section" style="display: none;">
             <h2>Chọn Chi Nhánh & Chức năng</h2>
-            <label for="branch-select">Chọn chi nhánh:</label>
-            <select id="branch-select">
-                <option value="">-- Vui lòng chọn --</option>
-            </select>
-            <p id="branch-status"></p>
+            <div class="branch-section">
+                <label for="branch-select">Chọn chi nhánh:</label>
+                <select id="branch-select" disabled>
+                    <option value="">-- Vui lòng chọn --</option>
+                </select>
+                <p id="branch-status" class="status-message"></p>
+            </div>
 
             <div id="action-buttons">
                 <h3>Hành động Xóa/Hủy:</h3>
@@ -32,9 +34,9 @@
                     <button class="action-btn" data-endpoint="orders" data-branch-filter="true" data-action="cancel_and_del">Xóa Đơn Hàng</button>
                     <button class="action-btn" data-endpoint="orderstock" data-branch-filter="true" data-action="cancel_and_del">Xóa Nhập Hàng</button>
                     <button class="action-btn" data-endpoint="inventorycount" data-branch-filter="true" data-action="cancel_and_del">Xóa Kiểm Kê</button>
-                    <button class="action-btn" data-endpoint="accountingtransaction" data-branch-filter="false" data-action="cancel">Hủy Thu Chi</button> <!-- Hủy, không xóa -->
+                    <button class="action-btn" data-endpoint="accountingtransaction" data-branch-filter="false" data-action="cancel">Hủy Thu Chi</button>
                 </div>
-                 <div class="button-row">
+                <div class="button-row">
                     <button class="action-btn" data-endpoint="products" data-branch-filter="false" data-action="del">Xóa Hàng Hóa</button>
                     <button class="action-btn" data-endpoint="partners" data-branch-filter="false" data-extra-param="&Type=1" data-action="del">Xóa Khách Hàng</button>
                     <button class="action-btn" data-endpoint="partners" data-branch-filter="false" data-extra-param="&Type=2" data-action="del">Xóa Nhà Cung Cấp</button>
