@@ -28,26 +28,30 @@ h1, h2, h3 {
     border-radius: 5px;
 }
 
+.branch-section {
+    margin-bottom: 15px;
+}
+
 input[type="text"],
 input[type="password"],
 select {
-    width: calc(100% - 22px); /* Adjust for padding/border */
+    width: calc(100% - 22px);
     padding: 10px;
     margin-bottom: 10px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    display: block; /* Make inputs take full width */
+    display: block;
 }
 
 button {
-    display: inline-block; /* Allow buttons side-by-side */
+    display: inline-block;
     background-color: #5cb85c;
     color: white;
     padding: 10px 15px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    margin: 5px; /* Add some space around buttons */
+    margin: 5px;
     transition: background-color 0.3s ease;
 }
 
@@ -61,22 +65,23 @@ button:disabled {
 }
 
 #login-btn {
-     display: block; /* Make login button full width */
-     width: 100%;
+    display: block;
+    width: 100%;
 }
 
 .button-row {
-    display: flex; /* Arrange buttons in a row */
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    justify-content: center; /* Center buttons */
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     margin-bottom: 10px;
 }
 
 .action-btn {
-    background-color: #d9534f; /* Red for delete actions */
-    flex-grow: 1; /* Allow buttons to grow */
-    min-width: 150px; /* Minimum width */
+    background-color: #d9534f;
+    flex-grow: 1;
+    min-width: 150px;
 }
+
 .action-btn:hover {
     background-color: #c9302c;
 }
@@ -92,14 +97,14 @@ button:disabled {
     margin-bottom: 10px;
 }
 
- #log-output {
+#log-output {
     background-color: #e9e9e9;
     border: 1px solid #ccc;
     padding: 10px;
     height: 200px;
     overflow-y: scroll;
-    white-space: pre-wrap; /* Wrap long lines */
-    word-wrap: break-word; /* Break long words */
+    white-space: pre-wrap;
+    word-wrap: break-word;
     font-size: 0.9em;
     border-radius: 4px;
 }
@@ -115,4 +120,14 @@ button:disabled {
 
 .log-info {
     color: blue;
+}
+
+.status-message {
+    margin-top: 5px;
+    font-size: 0.9em;
+}
+
+.status-message.error {
+    color: red;
+    font-weight: bold;
 }
